@@ -1,91 +1,147 @@
-# Network Intrusion Detection System
+# 🚀 Kitsune Adaptive Threshold Network Intrusion Detection System
 
-With regard to the latest developments in the ISO/IEEE 11073 service-oriented device connectivity (SDC) its important to not leave possible security and safety risks of this new communication protocol out of consideration. Therefore the basic idea of this project (carried out during the author's bachelor thesis) was to improve the security as well as the safety of sdc connected medical devices with ML based anomaly detection. 
-The concept is illustrated in the following chart: 
-![Concept](img/concept.svg)
-So the safety and security system is itemized in two anomaly detectors: one network intrusion detection system  (content of this repository) and one log/sensor anomaly detector. 
-While the nids runs directly on the switch that interconnects different medical devices, the log anomaly detector runs in the backend. 
+## 📌 Overview
 
-## Dependencies
-The necessary dependencies are listed in `requirements.txt`: use `pip install -r requirements.txt` to install all suitable versions. 
-Additionally wireshark or rather tshark has to be installed and added to the system path. 
+This project enhances the original Kitsune Network Intrusion Detection System (NIDS) by replacing the static threshold mechanism with a self-calibrating adaptive threshold.
 
-## Underlying papers and informations
+The system detects anomalies in network traffic using reconstruction error (RMSE) from an ensemble of autoencoders and dynamically adjusts its decision boundary in real-time.
 
-+ code is based on the [paper](https://arxiv.org/abs/1802.09089) and [implementation](https://github.com/ymirsky/Kitsune-py)
-+ similiar project but blockchain based can be found [here](https://github.com/KevinTuncer/sdc-sniffer)
-+ [Survey of Network Intrusion Detection Methods from the Perspective of the Knowledge Discovery in Databases Process](https://arxiv.org/abs/2001.09697)
-+ [SOME/IP Intrusion Detection using Deep Learning-based Sequential Models in Automotive Ethernet Networks](https://arxiv.org/abs/2108.08262)
-    + SOME/IP is automotive equivalente for service oriented communication
-    + Recurrent Neural Network 
-    + synthetical dataset generator
-    + supervised learning, therefore not able to detect new unknown attacks 
-+ [A Distributed Multi-Approach Intrusion Detection System for Web Services](https://dl.acm.org/doi/abs/10.1145/1854099.1854147)
-    + static and dynamic anomaly detection (Hidden Markov Model)
-    + lightway NIDS that works directly on web servers
-    + system only inspects the payload (soap messages)
-+ [A Method for Intrusion Detection in Web Services Based on Time Series](https://ieeexplore.ieee.org/document/7129383)
-    + statistical model predicts the range of coming soap message sizes
-    + if actual soap message size is out of this range its considered as an anomaly 
-    + only one feature: soap message size 
-+ [Federated Learning for Internet of Things: A Federated Learning Framework for On-device Anomaly Data Detection](https://arxiv.org/abs/2106.07976)
-    + Deep Autoencoders
-    + Framework to test it on a Raspberry Pi or Nvidia Jetson Nano
-+ [An Intrusion Detection System for Internet of Medical Things](https://ieeexplore.ieee.org/document/9204697)
-    + polynomal regression on physiological sensor data to predict next datapoints 
-    + if actual sensor data highly deviates from the predicted one it gets considered as anomaly 
-    + model gets executed in distributed manner
-+ [On Generating Network Traffic Datasets with Synthetic Attacks for Intrusion Detection](https://arxiv.org/abs/1905.00304)
-    + code can be found [here](https://github.com/tklab-tud/ID2T)
-+ comparison of different packet crafting and sniffing libraries can be found [here](http://libtins.github.io/benchmark/)
-    + faster alternative to pyshark: [Packet capture on Windows without a kernel driver](https://github.com/nospaceships/raw-socket-sniffer)
-+ different open source implementations of the ISO/IEEE 11073 SDC
-    + [c++ version](https://github.com/surgitaix/sdclib)
-    + [python version](https://github.com/Draegerwerk/sdc11073)
+---
 
+## ❗ Problem in Original Kitsune
 
-## Usage steps 
+The original Kitsune uses a fixed threshold:
 
-**offline and online NIDS**
+ϕ = max(training RMSE)
 
-+ run `NIDS_offline.py` to train and execute the model on a dataset
-+ run `NIDS_online.py` to train the model on a trainingset and execute it on live captured data
-+ `Kitsune.py` specifies the training and execution structure of the model which is defined in `KitNET`
+### Limitations:
 
-**Tuning hyperparameter** 
+* ❌ No adaptation to changing network behavior
+* ❌ Sensitive to noise during training
+* ❌ Threshold remains static in dynamic environments
+* ❌ High false positives or false negatives
 
-+ `hyperparaTune.py` is based on the library [hyperopt](https://github.com/hyperopt/hyperopt) which uses  Bayesian optimization 
+---
 
-**Adjusting features**
+## 💡 Proposed Solution: Adaptive Threshold
 
-+ `FeatureExtractor.py`: uses scapy or tshark under the hood to extract meta data like srcIP, dstIP, etc. from the packets
-+ `netStat.py`: uses the extracted meta data to calculate statistical features 
-+ `AfterImage.py`: is used to calculate basic statistical features 
+We introduced a **self-calibrating threshold mechanism**:
 
-**Synthetical data generation** (`data_sdc11073`)
+### Core Idea:
 
-+ `fictEnvironments.py` initializes different clients and a provider (specified in `mdib_OPtable.xml`) as well as the communication between them
-+ run `dataGen.py` to capture the data transmitted between clients and providers 
-+ the saved file can be labeld in `dataLabeling.py` to evaluate the model later
+threshold = μ + z × σ
 
-## Results/Evaluation
+Where:
 
-**Root Mean Square Error and Threshold**
+* μ = mean of recent RMSE values
+* σ = standard deviation
+* z = sensitivity parameter
 
-**Denial of Service Attack**
-![DoSRmse](img/DoSRMSE.png)
-**Portscan Attack**
-![PortscanRMSE](img/PortscanRMSE.png)
+---
 
-**Metrics, runtime and required resources**
+## 🔥 Key Enhancements
 
-| Metrics  | Denial of Service Attack | Portscan Attack |
-| -------- | ------------------------ | --------------- |
-| TPR      | 0.9952 | 0.9990 |
-| FPR      | 0.0019 | 0.0004 |
-| F-Score  | 0.9966 | 0.9975 |
+### 1. Sliding Window
 
-+ runtime (on CPU): 469 Pakets/s
-+ resources: 152 MB
+* Maintains recent RMSE values
+* Enables real-time adaptation
 
-For limitations and further improvements, see `TODO.txt`
+---
+
+### 2. Adaptive Threshold
+
+* Dynamically updates threshold based on live data
+* Replaces static φ from training
+
+---
+
+### 3. Drift Detection
+
+* Uses coefficient of variation (CV)
+* Detects stable shifts in data distribution
+
+---
+
+### 4. Drift Buffer
+
+* Temporarily stores anomalous points
+* Prevents immediate contamination of baseline
+
+---
+
+### 5. Hard Ceiling Protection
+
+* Prevents large attack spikes from entering baseline
+* Avoids threshold explosion
+
+---
+
+## 🧠 System Pipeline
+
+PCAP → FeatureExtractor → KitNET → RMSE → AdaptiveThreshold → Alert
+
+---
+
+## 📂 Project Structure
+
+* `Kitsune.py` → Core pipeline (modified with adaptive logic)
+* `adaptive_threshold.py` → Self-calibrating threshold implementation
+* `adaptive_metrics.py` → Evaluation for adaptive model
+* `adaptive_metrics_tuned.py` → Tuned parameter evaluation
+* `baseline_metrics_old.py` → Original model baseline
+
+---
+
+## 📊 Dataset
+
+* Mirai botnet dataset
+* Contains:
+
+  * Normal traffic (training phase)
+  * Attack traffic (execution phase)
+
+---
+
+## 📈 Results
+
+Compared models:
+
+| Model               | Behavior                       |
+| ------------------- | ------------------------------ |
+| Old Model           | Fixed threshold, no adaptation |
+| Adaptive Model      | Dynamic threshold              |
+| Tuned Model (z=3.5) | Balanced sensitivity           |
+| Tuned Model (z=4.0) | More conservative detection    |
+
+### Observations:
+
+* Adaptive model maintains stable threshold
+* Handles distribution shifts effectively
+* Reduces impact of noise
+* Improves robustness over static model
+
+---
+
+## ⚙️ Technologies Used
+
+* Python
+* NumPy
+* Scikit-learn (indirect via KitNET)
+* Matplotlib
+* SciPy
+
+---
+
+## 🎯 Conclusion
+
+The adaptive threshold approach significantly improves the robustness of Kitsune in dynamic environments by:
+
+* Eliminating dependency on a static threshold
+* Handling drift safely
+* Maintaining detection sensitivity without overfitting
+
+---
+
+## 👨‍💻 Author
+
+Vamsi Krishna
